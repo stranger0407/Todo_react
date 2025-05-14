@@ -2,8 +2,8 @@ import {
   createContext,
   useReducer,
   useContext,
-  ReactNode,
-  Dispatch,
+  type ReactNode,
+  type Dispatch,
 } from "react";
 import { v4 as uuidv4 } from "uuid";
 

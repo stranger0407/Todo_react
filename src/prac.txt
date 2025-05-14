@@ -1,0 +1,518 @@
+// src/App.js
+import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
+import Navbar from './components/Navbar';
+import Home from './pages/Home';
+import About from './pages/About';
+import TodosPage from './pages/TodosPage';
+import TodoDetail from './pages/TodoDetail';
+import AddTodo from './pages/AddTodo';
+import TodosLayout from './components/TodosLayout';
+import EditTodo from './pages/EditTodo';
+import { TodoProvider } from './context/TodoContext';
+
+function App() {
+  return (
+    <TodoProvider>
+      <Router>
+        <div className="app">
+          <Navbar />
+          <div className="container mx-auto p-4">
+            <Routes>
+              <Route path="/" element={<Home />} />
+              <Route path="/about" element={<About />} />
+              
+              <Route path="/todos" element={<TodosLayout />}>
+                <Route index element={<TodosPage />} />
+                <Route path=":todoId" element={<TodoDetail />} />
+                <Route path="add" element={<AddTodo />} />
+                <Route path="edit/:todoId" element={<EditTodo />} />
+              </Route>
+              
+              <Route path="*" element={<Navigate to="/" />} />
+            </Routes>
+          </div>
+        </div>
+      </Router>
+    </TodoProvider>
+  );
+}
+
+export default App;
+
+// src/components/TodosLayout.js
+import { Outlet } from 'react-router-dom';
+import { Link } from 'react-router-dom';
+import { useTodoContext } from '../context/TodoContext';
+
+function TodosLayout() {
+  const { todos } = useTodoContext();
+  const completedCount = todos.filter(todo => todo.completed).length;
+  const pendingCount = todos.length - completedCount;
+
+  return (
+    <div>
+      <div className="bg-gray-100 p-4 mb-4 rounded-md">
+        <div className="flex justify-between items-center">
+          <div>
+            <h2 className="text-xl font-bold">Todos Summary</h2>
+            <p>Total: {todos.length} | Completed: {completedCount} | Pending: {pendingCount}</p>
+          </div>
+          <Link 
+            to="/todos/add" 
+            className="bg-blue-500 hover:bg-blue-600 text-white px-4 py-2 rounded"
+          >
+            Add New Todo
+          </Link>
+        </div>
+      </div>
+      <Outlet />
+    </div>
+  );
+}
+
+export default TodosLayout;
+
+// src/pages/TodosPage.js
+import { useSearchParams } from 'react-router-dom';
+import TodoItem from '../components/TodoItem';
+import { useTodoContext } from '../context/TodoContext';
+
+function TodosPage() {
+  const { todos } = useTodoContext();
+  const [searchParams, setSearchParams] = useSearchParams();
+  const searchTerm = searchParams.get('search') || '';
+
+  const handleSearch = (e) => {
+    const search = e.target.value;
+    if (search) {
+      setSearchParams({ search });
+    } else {
+      setSearchParams({});
+    }
+  };
+
+  const filteredTodos = todos.filter(todo => 
+    todo.title.toLowerCase().includes(searchTerm.toLowerCase()) ||
+    todo.description.toLowerCase().includes(searchTerm.toLowerCase())
+  );
+
+  return (
+    <div>
+      <div className="mb-4">
+        <input
+          type="text"
+          placeholder="Search todos..."
+          value={searchTerm}
+          onChange={handleSearch}
+          className="w-full p-2 border rounded-md"
+        />
+      </div>
+      
+      {filteredTodos.length > 0 ? (
+        <div>
+          {filteredTodos.map(todo => (
+            <TodoItem key={todo.id} todo={todo} />
+          ))}
+        </div>
+      ) : (
+        <p className="text-center py-4">No todos found. Try a different search term or add a new todo.</p>
+      )}
+    </div>
+  );
+}
+
+export default TodosPage;
+
+// src/pages/TodoDetail.js
+import { useParams, Link, useNavigate } from 'react-router-dom';
+import { useTodoContext } from '../context/TodoContext';
+
+function TodoDetail() {
+  const { todos, toggleComplete, deleteTodo } = useTodoContext();
+  const { todoId } = useParams();
+  const navigate = useNavigate();
+  const todo = todos.find(t => t.id === parseInt(todoId));
+
+  const formatDate = (dateString) => {
+    const options = { 
+      year: 'numeric', 
+      month: 'short', 
+      day: 'numeric',
+      hour: '2-digit',
+      minute: '2-digit'
+    };
+    return new Date(dateString).toLocaleDateString(undefined, options);
+  };
+
+  if (!todo) {
+    return (
+      <div className="text-center py-8">
+        <h2 className="text-2xl font-bold mb-4">Todo not found</h2>
+        <Link to="/todos" className="text-blue-500 hover:underline">Back to Todos</Link>
+      </div>
+    );
+  }
+
+  const handleToggle = () => {
+    toggleComplete(todo.id);
+  };
+
+  const handleDelete = () => {
+    if (window.confirm('Are you sure you want to delete this todo?')) {
+      deleteTodo(todo.id);
+      navigate('/todos');
+    }
+  };
+
+  return (
+    <div className="bg-white p-6 rounded-lg shadow-md">
+      <h2 className="text-2xl font-bold mb-4">{todo.title}</h2>
+      <div className="mb-4">
+        <p className="text-gray-700">{todo.description}</p>
+      </div>
+      <div className="mb-4">
+        <p className="text-sm text-gray-500">Created: {formatDate(todo.createdAt)}</p>
+        <p className="text-sm font-medium mt-1">
+          Status: 
+          <span className={`ml-2 ${todo.completed ? 'text-green-600' : 'text-yellow-600'}`}>
+            {todo.completed ? 'Completed' : 'Pending'}
+          </span>
+        </p>
+      </div>
+      <div className="flex space-x-3">
+        <button
+          onClick={handleToggle}
+          className={`px-4 py-2 rounded ${
+            todo.completed 
+              ? 'bg-yellow-500 hover:bg-yellow-600' 
+              : 'bg-green-500 hover:bg-green-600'
+          } text-white`}
+        >
+          {todo.completed ? 'Mark as Pending' : 'Mark as Complete'}
+        </button>
+        <Link
+          to={`/todos/edit/${todo.id}`}
+          className="bg-blue-500 hover:bg-blue-600 text-white px-4 py-2 rounded"
+        >
+          Edit
+        </Link>
+        <button
+          onClick={handleDelete}
+          className="bg-red-500 hover:bg-red-600 text-white px-4 py-2 rounded"
+        >
+          Delete
+        </button>
+        <Link
+          to="/todos"
+          className="bg-gray-500 hover:bg-gray-600 text-white px-4 py-2 rounded"
+        >
+          Back
+        </Link>
+      </div>
+    </div>
+  );
+}
+
+export default TodoDetail;
+
+// src/pages/AddTodo.js
+import { useState } from 'react';
+import { useNavigate } from 'react-router-dom';
+import { useTodoContext } from '../context/TodoContext';
+
+function AddTodo() {
+  const { addTodo } = useTodoContext();
+  const [title, setTitle] = useState('');
+  const [description, setDescription] = useState('');
+  const navigate = useNavigate();
+
+  const handleSubmit = (e) => {
+    e.preventDefault();
+    
+    if (!title.trim()) {
+      alert('Title is required');
+      return;
+    }
+    
+    addTodo({ title, description });
+    navigate('/todos');
+  };
+
+  return (
+    <div className="max-w-md mx-auto bg-white p-6 rounded-lg shadow-md">
+      <h2 className="text-2xl font-bold mb-4">Add New Todo</h2>
+      <form onSubmit={handleSubmit}>
+        <div className="mb-4">
+          <label className="block text-gray-700 mb-2" htmlFor="title">
+            Title <span className="text-red-500">*</span>
+          </label>
+          <input
+            type="text"
+            id="title"
+            value={title}
+            onChange={(e) => setTitle(e.target.value)}
+            className="w-full p-2 border rounded-md"
+            placeholder="Enter todo title"
+            required
+          />
+        </div>
+        <div className="mb-4">
+          <label className="block text-gray-700 mb-2" htmlFor="description">
+            Description
+          </label>
+          <textarea
+            id="description"
+            value={description}
+            onChange={(e) => setDescription(e.target.value)}
+            className="w-full p-2 border rounded-md"
+            placeholder="Enter todo description"
+            rows="4"
+          />
+        </div>
+        <div className="flex space-x-3">
+          <button
+            type="submit"
+            className="bg-blue-500 hover:bg-blue-600 text-white px-4 py-2 rounded"
+          >
+            Add Todo
+          </button>
+          <button
+            type="button"
+            onClick={() => navigate('/todos')}
+            className="bg-gray-500 hover:bg-gray-600 text-white px-4 py-2 rounded"
+          >
+            Cancel
+          </button>
+        </div>
+      </form>
+    </div>
+  );
+}
+
+export default AddTodo;
+
+// src/pages/EditTodo.js
+import { useState, useEffect } from 'react';
+import { useParams, useNavigate } from 'react-router-dom';
+import { useTodoContext } from '../context/TodoContext';
+
+function EditTodo() {
+  const { todos, updateTodo } = useTodoContext();
+  const { todoId } = useParams();
+  const navigate = useNavigate();
+  const [title, setTitle] = useState('');
+  const [description, setDescription] = useState('');
+  
+  useEffect(() => {
+    const todo = todos.find(t => t.id === parseInt(todoId));
+    if (todo) {
+      setTitle(todo.title);
+      setDescription(todo.description);
+    } else {
+      navigate('/todos');
+    }
+  }, [todoId, todos, navigate]);
+
+  const handleSubmit = (e) => {
+    e.preventDefault();
+    
+    if (!title.trim()) {
+      alert('Title is required');
+      return;
+    }
+    
+    const todo = todos.find(t => t.id === parseInt(todoId));
+    if (todo) {
+      updateTodo({
+        ...todo,
+        title,
+        description
+      });
+      navigate(`/todos/${todoId}`);
+    }
+  };
+
+  return (
+    <div className="max-w-md mx-auto bg-white p-6 rounded-lg shadow-md">
+      <h2 className="text-2xl font-bold mb-4">Edit Todo</h2>
+      <form onSubmit={handleSubmit}>
+        <div className="mb-4">
+          <label className="block text-gray-700 mb-2" htmlFor="title">
+            Title <span className="text-red-500">*</span>
+          </label>
+          <input
+            type="text"
+            id="title"
+            value={title}
+            onChange={(e) => setTitle(e.target.value)}
+            className="w-full p-2 border rounded-md"
+            placeholder="Enter todo title"
+            required
+          />
+        </div>
+        <div className="mb-4">
+          <label className="block text-gray-700 mb-2" htmlFor="description">
+            Description
+          </label>
+          <textarea
+            id="description"
+            value={description}
+            onChange={(e) => setDescription(e.target.value)}
+            className="w-full p-2 border rounded-md"
+            placeholder="Enter todo description"
+            rows="4"
+          />
+        </div>
+        <div className="flex space-x-3">
+          <button
+            type="submit"
+            className="bg-blue-500 hover:bg-blue-600 text-white px-4 py-2 rounded"
+          >
+            Update Todo
+          </button>
+          <button
+            type="button"
+            onClick={() => navigate(`/todos/${todoId}`)}
+            className="bg-gray-500 hover:bg-gray-600 text-white px-4 py-2 rounded"
+          >
+            Cancel
+          </button>
+        </div>
+      </form>
+    </div>
+  );
+}
+
+export default EditTodo;
+// src/context/TodoContext.js
+import { createContext, useContext, useReducer, useEffect } from 'react';
+
+// Initial state for todos
+const initialState = {
+  todos: localStorage.getItem('todos')
+    ? JSON.parse(localStorage.getItem('todos'))
+    : [
+        {
+          id: 1,
+          title: 'Learn React Router',
+          description: 'Master React Router for navigation in React apps',
+          completed: false,
+          createdAt: new Date().toISOString(),
+        },
+        {
+          id: 2,
+          title: 'Build Todo App',
+          description: 'Create a functional Todo application with React',
+          completed: true,
+          createdAt: new Date().toISOString(),
+        },
+        {
+          id: 3,
+          title: 'Learn State Management',
+          description: 'Study different state management options in React',
+          completed: false,
+          createdAt: new Date().toISOString(),
+        },
+      ],
+};
+
+// Action types
+const ADD_TODO = 'ADD_TODO';
+const TOGGLE_TODO = 'TOGGLE_TODO';
+const UPDATE_TODO = 'UPDATE_TODO';
+const DELETE_TODO = 'DELETE_TODO';
+
+// Reducer function to handle state changes
+const todoReducer = (state, action) => {
+  switch (action.type) {
+    case ADD_TODO:
+      return {
+        ...state,
+        todos: [...state.todos, action.payload],
+      };
+    case TOGGLE_TODO:
+      return {
+        ...state,
+        todos: state.todos.map((todo) =>
+          todo.id === action.payload
+            ? { ...todo, completed: !todo.completed }
+            : todo
+        ),
+      };
+    case UPDATE_TODO:
+      return {
+        ...state,
+        todos: state.todos.map((todo) =>
+          todo.id === action.payload.id
+            ? { ...todo, ...action.payload }
+            : todo
+        ),
+      };
+    case DELETE_TODO:
+      return {
+        ...state,
+        todos: state.todos.filter((todo) => todo.id !== action.payload),
+      };
+    default:
+      return state;
+  }
+};
+
+// Create context
+const TodoContext = createContext();
+
+// Context provider component
+export const TodoProvider = ({ children }) => {
+  const [state, dispatch] = useReducer(todoReducer, initialState);
+
+  // Save todos to localStorage whenever they change
+  useEffect(() => {
+    localStorage.setItem('todos', JSON.stringify(state.todos));
+  }, [state.todos]);
+
+  // Action creators
+  const addTodo = (todo) => {
+    const newTodo = {
+      ...todo,
+      id: Date.now(),
+      completed: false,
+      createdAt: new Date().toISOString(),
+    };
+    dispatch({ type: ADD_TODO, payload: newTodo });
+  };
+
+  const toggleComplete = (id) => {
+    dispatch({ type: TOGGLE_TODO, payload: id });
+  };
+
+  const updateTodo = (todo) => {
+    dispatch({ type: UPDATE_TODO, payload: todo });
+  };
+
+  const deleteTodo = (id) => {
+    dispatch({ type: DELETE_TODO, payload: id });
+  };
+
+  return (
+    <TodoContext.Provider
+      value={{
+        todos: state.todos,
+        addTodo,
+        toggleComplete,
+        updateTodo,
+        deleteTodo,
+      }}
+    >
+      {children}
+    </TodoContext.Provider>
+  );
+};
+
+// Custom hook to use the todo context
+export const useTodoContext = () => {
+  const context = useContext(TodoContext);
+  if (!context) {
+    throw new Error('useTodoContext must be used within a TodoProvider');
+  }
+  return context;
+};
